@@ -20,6 +20,7 @@ lib64/
 parts/
 sdist/
 var/
+local/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -60,3 +61,19 @@ target/
 
 #Ipython Notebook
 .ipynb_checkpoints
+
+#R
+.Rproj.user
+.Rhistory
+*.Rapp.history
+*.RData
+*.rda
+*.rds
+
+#Latex
+*.aux
+*.out
+*.synctex.gz
+
+#Mac
+.DS_Store
