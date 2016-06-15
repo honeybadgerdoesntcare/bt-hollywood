@@ -55,35 +55,39 @@ test_for_predict_RDD = test_RDD.map(lambda x: (x[0], x[1]))
 
 seed = 5L
 iterations = 10
-regularization_parameter = 0.1
+lambda_s = [0.001, 0.1, 0.2, 0.3]
 ranks = [4, 8, 12]
-errors = [0, 0, 0]
+errors = [0] * (len(ranks)*len(lambda_s))
+print(errors)
 err = 0
 tolerance = 0.02
 
 min_error = float('inf')
 best_rank = -1
 best_iteration = -1
+best_lambda = -1
 for rank in ranks:
-    model = ALS.train(training_RDD, rank, seed=seed, iterations=iterations,
-                      lambda_=regularization_parameter)
-    predictions = model.predictAll(validation_for_predict_RDD).map(lambda r: ((r[0], r[1]), r[2]))
-    rates_and_preds = validation_RDD.map(lambda r: ((int(r[0]), int(r[1])), float(r[2]))).join(predictions)
-    # rates_and_preds.take(1)
-    # [((361, 589), (5.0, 3.691408043965179))]
-    error = math.sqrt(rates_and_preds.map(lambda r: (r[1][0] - r[1][1])**2).mean())
-    errors[err] = error
-    err += 1
-    print 'For rank %s the RMSE is %s' % (rank, error)
-    if error < min_error:
-        min_error = error
-        best_rank = rank
+    for lambda_i in lambda_s:
+        model = ALS.train(training_RDD, rank, seed=seed, iterations=iterations,
+                          lambda_=lambda_i)
+        predictions = model.predictAll(validation_for_predict_RDD).map(lambda r: ((r[0], r[1]), r[2]))
+        rates_and_preds = validation_RDD.map(lambda r: ((int(r[0]), int(r[1])), float(r[2]))).join(predictions)
+        # rates_and_preds.take(1)
+        # [((361, 589), (5.0, 3.691408043965179))]
+        error = math.sqrt(rates_and_preds.map(lambda r: (r[1][0] - r[1][1])**2).mean())
+        errors[err] = error
+        err += 1
+        print 'For rank %s, %f the RMSE is %s' % (rank, lambda_i, error)
+        if error < min_error:
+            min_error = error
+            best_rank = rank
+            best_lambda = lambda_i
 
-print 'The best model was trained with rank %s' % best_rank
+print 'The best model was trained with rank %s, lambda %f' % (best_rank, best_lambda) 
 
 # Test 
 model = ALS.train(training_RDD, best_rank, seed=seed, iterations=iterations,
-                      lambda_=regularization_parameter)
+                      lambda_=best_lambda)
 predictions = model.predictAll(test_for_predict_RDD).map(lambda r: ((r[0], r[1]), r[2]))
 rates_and_preds = test_RDD.map(lambda r: ((int(r[0]), int(r[1])), float(r[2]))).join(predictions)
 error = math.sqrt(rates_and_preds.map(lambda r: (r[1][0] - r[1][1])**2).mean())
@@ -92,7 +96,7 @@ print 'For testing data the RMSE is %s' % (error)
 
 # Using the complete dataset to build the final model; re-do the above
 # Load the complete dataset file
-complete_ratings_file = os.path.join('./datasets', 'ml-latest', 'ratings.csv')
+complete_ratings_file = os.path.join(datasets_path, 'ml-latest', 'ratings.csv')
 complete_ratings_raw_data = sc.textFile(complete_ratings_file)
 complete_ratings_raw_data_header = complete_ratings_raw_data.take(1)[0]
 # Parse
@@ -101,8 +105,8 @@ complete_ratings_data = complete_ratings_raw_data.filter(lambda line: line!=comp
 print "There are %s recommendations in the complete dataset" % (complete_ratings_data.count())
 
 training_RDD, test_RDD = complete_ratings_data.randomSplit([7, 3], seed=0L)
-complete_model = ALS.train(training_RDD, best_rank, seed=seed,
-                           iterations=iterations, lambda_=regularization_parameter)
+complete_model = ALS.train(training_RDD, best_rank, seed=seed, 
+                           iterations=iterations, lambda_=best_lambda)
 
 test_for_predict_RDD = test_RDD.map(lambda x: (x[0], x[1]))
 predictions = complete_model.predictAll(test_for_predict_RDD).map(lambda r: ((r[0], r[1]), r[2]))
@@ -113,6 +117,8 @@ print 'For testing data the RMSE is %s' % (error)
 
 
 # Persist the model
+if not os.path.exists('./models',):
+	os.mkdir('./models')
 model_path = os.path.join('./models', 'movie_lens_als')
 
 # Save and load model
