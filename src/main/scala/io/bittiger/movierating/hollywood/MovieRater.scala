@@ -14,11 +14,11 @@ import org.apache.spark.mllib.recommendation.{ALS, MatrixFactorizationModel, Rat
   */
 object MovieRater extends App {
 
-  //  if (args.length != 2) {
-  //    println("Usage: /path/to/spark/bin/spark-submit --driver-memory 2g --class MovieLensALS " +
-  //      "target/scala-*/movielens-als-ssembly-*.jar movieLensHomeDir personalRatingsFile")
-  //    sys.exit(1)
-  //  }
+    if (args.length != 1) {
+      println("Usage: spark-submit --master yarn-client --class io.bittiger.movierating.hollywood.MovieRater " +
+        "hollywood-*-SNAPSHOT-jar-with-dependencies.jar ratingsCsvHdfsPath")
+      sys.exit(1)
+    }
 
   // set up environment
   val conf = new SparkConf().setAppName("MovieRater")
