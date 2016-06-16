@@ -70,13 +70,14 @@ Make new folders in HDFS and copy ratings.csv over
 
 - Third step
   - run on small dataset :
-    ```shell
-    spark-submit --master yarn-client --class io.bittiger.movierating.hollywood.MovieRater hollywood-1.0-SNAPSHOT-jar-with-dependencies.jar  /tmp/mydata/movielens/small/ratings.csv
-    ```
+```shell
+spark-submit --master yarn-client --class io.bittiger.movierating.hollywood.MovieRater hollywood-1.0-SNAPSHOT-jar-with-dependencies.jar  /tmp/mydata/movielens/small/ratings.csv
+```
   - run on large dataset :
-    ```shell
-    spark-submit --master yarn-client --class io.bittiger.movierating.hollywood.MovieRater hollywood-1.0-SNAPSHOT-jar-with-dependencies.jar  /tmp/mydata/movielens/big/ratings.csv
-    ```
+```shell
+spark-submit --master yarn-client --class io.bittiger.movierating.hollywood.MovieRater hollywood-1.0-SNAPSHOT-jar-with-dependencies.jar  /tmp/mydata/movielens/big/ratings.csv
+```
+
 ### Result example
 ```
 Got 22884377 ratings from 247753 users on 33670 movies.
