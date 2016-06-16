@@ -83,7 +83,7 @@ for rank in ranks:
             best_rank = rank
             best_lambda = lambda_i
 
-print 'The best model was trained with rank %s, lambda %f' % (best_rank, best_lambda) 
+print 'The best model was trained with rank %s, lambda %f' % (best_rank, best_lambda)
 
 # Test 
 model = ALS.train(training_RDD, best_rank, seed=seed, iterations=iterations,
@@ -93,16 +93,19 @@ rates_and_preds = test_RDD.map(lambda r: ((int(r[0]), int(r[1])), float(r[2]))).
 error = math.sqrt(rates_and_preds.map(lambda r: (r[1][0] - r[1][1])**2).mean())
 
 print 'For testing data the RMSE is %s' % (error)
-
+'''
 # Using the complete dataset to build the final model; re-do the above
 # Load the complete dataset file
-complete_ratings_file = os.path.join(datasets_path, 'ml-latest', 'ratings.csv')
+complete_ratings_file = os.path.join('./datasets', 'ml-latest', 'ratings.csv')
 complete_ratings_raw_data = sc.textFile(complete_ratings_file)
 complete_ratings_raw_data_header = complete_ratings_raw_data.take(1)[0]
 # Parse
 complete_ratings_data = complete_ratings_raw_data.filter(lambda line: line!=complete_ratings_raw_data_header)\
     .map(lambda line: line.split(",")).map(lambda tokens: (int(tokens[0]),int(tokens[1]),float(tokens[2]))).cache()
 print "There are %s recommendations in the complete dataset" % (complete_ratings_data.count())
+
+# to avoid stackover flow
+sc.setCheckpointDir('checkpoint/')
 
 training_RDD, test_RDD = complete_ratings_data.randomSplit([7, 3], seed=0L)
 complete_model = ALS.train(training_RDD, best_rank, seed=seed, 
@@ -114,15 +117,11 @@ rates_and_preds = test_RDD.map(lambda r: ((int(r[0]), int(r[1])), float(r[2]))).
 error = math.sqrt(rates_and_preds.map(lambda r: (r[1][0] - r[1][1])**2).mean())
 
 print 'For testing data the RMSE is %s' % (error)
-
+'''
 
 # Persist the model
-if not os.path.exists('./models',):
-	os.mkdir('./models')
 model_path = os.path.join('./models', 'movie_lens_als')
 
 # Save and load model
 model.save(sc, model_path)
 same_model = MatrixFactorizationModel.load(sc, model_path)
-
-
