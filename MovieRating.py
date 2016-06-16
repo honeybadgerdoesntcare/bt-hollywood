@@ -1,4 +1,4 @@
- Programmed by Yang Zhou
+# Programmed by Yang Zhou
 # Date: 2016/06/08
 # This file fulfills the function of movie rating predictions and is going to be developed into 
 # a movie recommendation system based on Python/Flask/Spark
