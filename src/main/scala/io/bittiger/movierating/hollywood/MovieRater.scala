@@ -1,9 +1,9 @@
 package io.bittiger.movierating.hollywood
 
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.rdd._
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.mllib.recommendation.{ALS, MatrixFactorizationModel, Rating}
-
 
 /**
   * Created by rwang on 6/15/16.
@@ -14,11 +14,15 @@ import org.apache.spark.mllib.recommendation.{ALS, MatrixFactorizationModel, Rat
   */
 object MovieRater extends App {
 
-    if (args.length != 1) {
-      println("Usage: spark-submit --master yarn-client --class io.bittiger.movierating.hollywood.MovieRater " +
-        "hollywood-*-SNAPSHOT-jar-with-dependencies.jar ratingsCsvHdfsPath")
-      sys.exit(1)
-    }
+  Logger.getLogger("org").setLevel(Level.OFF)
+  Logger.getLogger("akka").setLevel(Level.OFF)
+  Logger.getRootLogger.setLevel(Level.WARN)
+
+  if (args.length != 4) {
+    println("Usage: spark-submit --master yarn-client --class io.bittiger.movierating.hollywood.MovieRater " +
+      "hollywood-*-SNAPSHOT-jar-with-dependencies.jar ratingsCsvHdfsPath movieCsvHdfsPath newUserProfileCsvHdfsPath idOfUserToRecommendMovies")
+    sys.exit(1)
+  }
 
   // set up environment
   val conf = new SparkConf().setAppName("MovieRater")
@@ -26,17 +30,30 @@ object MovieRater extends App {
   val sc = new SparkContext(conf)
 
   val ratingFilePath = args(0)
-//  val movieFilePath = args(1)
+  val movieFilePath = args(1)
+  val userRatingFilePath = args(2)
+  val idOfUserToRecommend = args(3)
   println("========================== STARTING ==============================" )
 
   // load ratings and movie titles, and parse
   val ratingsData = sc.textFile(ratingFilePath)
-  //remove csv header
-  val noHeader = ratingsData.mapPartitionsWithIndex { (idx, iter) => if (idx == 0) iter.drop(1) else iter }
-  val ratingsRDD = noHeader.map(_.split(',') match { case Array(user, movie, rating, timestamp) =>
+  val ratingsRDD = removeCsvHeader(ratingsData).map(_.split(',') match { case Array(user, movie, rating, timestamp) =>
     Rating(user.toInt, movie.toInt, rating.toDouble)
   })
   ratingsRDD.cache
+
+  val movieData = sc.textFile(movieFilePath)
+  val movieRDD = removeCsvHeader(movieData).map( line => {
+    val fields =  line.split(",")
+    // format: (movieId, movieName)
+    (fields(0).toInt, fields(1))
+  }).collect.toMap
+
+  val userRatingData = sc.textFile(userRatingFilePath)
+  val userRatingRDD = removeCsvHeader(userRatingData).map(_.split(',') match { case Array(user, movie, rating) =>
+    Rating(user.toInt, movie.toInt, rating.toDouble) })
+  val userRatingSeq = userRatingRDD.collect.toSeq
+  println("Current user <" + idOfUserToRecommend + "> profile:>>> \t" + userRatingSeq)
 
   val numRatings = ratingsRDD.count
   val numUsers = ratingsRDD.map(_.user).distinct.count
@@ -46,7 +63,7 @@ object MovieRater extends App {
 
   //split into 3 for training, validation, and testing
   val splitArr = ratingsRDD.randomSplit(Array(6, 2, 2), 0L)
-  val trainingRDD = splitArr(0)
+  val trainingRDD = splitArr(0).union(userRatingRDD)
   val validationRDD = splitArr(1)
   val testRDD = splitArr(2)
 
@@ -98,7 +115,25 @@ object MovieRater extends App {
   val improvement = (baselineRmse - testRmse) / baselineRmse * 100
   println("The best model improves the baseline by " + "%1.2f".format(improvement) + "%.")
 
+  // make personalized recommendations
+  val myRatedMovieIds = userRatingSeq.map(_.product).toSet
+  val candidates = sc.parallelize(movieRDD.keys.filter(!myRatedMovieIds.contains(_)).toSeq)
+  val recommendations = bestModel.get
+    .predict(candidates.map((idOfUserToRecommend.toInt, _)))
+    .collect()
+    .sortBy(- _.rating)
+    .take(50)
+  var i = 1
+  println("=============>>>>" + recommendations.length + " Movies recommended for User... <<<<=================")
+  recommendations.foreach { r =>
+    println("%2d".format(i) + ": " + movieRDD(r.product))
+    i += 1
+  }
+
   println("========================== COMPLETED ==============================" )
+
+
+  /////////////////////////////// util functions ///////////////////////////
 
   /** Compute RMSE (Root Mean Squared Error). */
   def computeRmse(model: MatrixFactorizationModel, data: RDD[Rating], n: Long): Double = {
@@ -107,6 +142,10 @@ object MovieRater extends App {
       .join(data.map(x => ((x.user, x.product), x.rating)))
       .values
     math.sqrt(predictionsAndRatings.map(x => (x._1 - x._2) * (x._1 - x._2)).reduce(_ + _) / n)
+  }
+
+  def removeCsvHeader(rdd: RDD[String]): RDD[String] = {
+    rdd.mapPartitionsWithIndex { (idx, iter) => if (idx == 0) iter.drop(1) else iter }
   }
 
 }
