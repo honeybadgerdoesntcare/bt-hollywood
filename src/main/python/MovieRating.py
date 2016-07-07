@@ -1,5 +1,7 @@
 # Programmed by Yang Zhou
-# Date: 2016/06/08
+# Modified by Edward Li
+# Original Date: 2016/06/08
+# Modificaion Date: 2016/07/07
 # This file fulfills the function of movie rating predictions and is going to be developed into 
 # a movie recommendation system based on Python/Flask/Spark
 
@@ -11,6 +13,7 @@ from pyspark.mllib.recommendation import ALS
 from pyspark.mllib.recommendation import MatrixFactorizationModel
 import math
 
+import numpy as np
 
 def quiet_logs( sc ):
   logger = sc._jvm.org.apache.log4j
@@ -55,8 +58,10 @@ test_for_predict_RDD = test_RDD.map(lambda x: (x[0], x[1]))
 
 seed = 5L
 iterations = 10
-lambda_s = [0.001, 0.1, 0.2, 0.3]
-ranks = [4, 8, 12]
+#lambda_s = [0.001, 0.1, 0.2, 0.3]
+lambda_s = np.linspace(0.01,0.5,50)
+#ranks = [4, 8, 12]
+ranks = range(1,21)
 errors = [0] * (len(ranks)*len(lambda_s))
 print(errors)
 err = 0
@@ -84,6 +89,9 @@ for rank in ranks:
             best_lambda = lambda_i
 
 print 'The best model was trained with rank %s, lambda %f' % (best_rank, best_lambda)
+
+# The best parameter is rank 1,lambda 0.1.
+# The RMSE is 0.89 
 
 # Test 
 model = ALS.train(training_RDD, best_rank, seed=seed, iterations=iterations,
