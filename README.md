@@ -2,13 +2,58 @@
 Movie Rating with Collaborative Filtering.   Featuring two ways of implementation -
 `Python + PySpark'  &  'Scala + Spark`
 
-## Python + PySpark implementation
-### Environment
-_Customized cloudera/quickstart image: upgrade python to 2.7.11_
-The customized image can be downloaded by
+### Environment: Docker setup
+First, download docker image,
+For scala, we use official CDH 5.7 docker image which is latest at the moment
+```shell
+docker pull cloudera/quickstart:latest
+```
+For python, WE use _Customized cloudera/quickstart image: upgrade python to 2.7.11_ (CDH 5.7 has python 2.6 which could be problematic for using libs such as numpy)
 ```shell
 docker pull zhou42/movierating:v1
 ```
+
+Step 2, start docker vm
+```shell
+docker-machine start default
+eval "$(docker-machine env default)"
+```
+
+Step 3, start docker
+scala:
+```shell
+docker run --hostname=quickstart.cloudera --privileged=true -t -i -p 18888:18888 -p 10080:10080 -p 17180:17180 -p 7180:7180 -p 4040:4040 -p 8888:8888 -p 80:80 -m 8192m -v /Users/rwang/Ideas:/repo cloudera/quickstart /usr/bin/docker-quickstart --name=cdh
+```
+python:
+```shell
+docker run --hostname=quickstart.cloudera --privileged=true -t -i -p 18888:18888 -p 10080:10080 -p 17180:17180 -p 7180:7180 -p 4040:4040 -p 8888:8888 -p 80:80 -m 8192m -v /Users/rwang/Ideas:/repo zhou42/movierating:v1 /usr/bin/docker-quickstart --name=cdh
+```
+
+Step 4:
+on docker terminal, start CDH services
+```shell
+/home/cloudera/cloudera-manager --express --force
+```
+connect to Cloudera manager on http://192.168.99.100:7180/
+```shell
+[root@quickstart /]# sudo -u hdfs hadoop fs -chmod 777 /user/spark
+[root@quickstart /]# sudo -u spark hadoop fs -chmod 777 /user/spark/applicationHistory
+```
+On Cloudera Manager, start services in the order below:
+HDFS
+Hive
+YARN
+Spark
+
+For `Bad health: Clock Offset` problem, disable the warning:
+Cloudera Manager → Configuration
+Host Clock Offset Thresholds
+「Warning」「Critical」→「Never
+「Save Changes」
+
+
+## Python + PySpark implementation
+
 ### Files
 _DataDownload.py_ download data from movielens website and store the data at the local file system
 _MovieRating.py_ load the file in the HDFS file system and build the latent factor CF model
@@ -40,7 +85,7 @@ result is as below
 
 
 ## Scala + Spark implementation
-_MovieRater.scala_ trains mode, evaluates and selects best model based on user ratings.
+_MovieRater.scala_ trains mode, evaluates and selects best model based on user ratings. Further more, recommend movies to user based existing rating records from user.
 
 ### Prerequisitives:
 
@@ -62,7 +107,9 @@ The movielens data will be downloaded to the current dir and unzipped into separ
 - Second step
 ```shell
 hadoop fs -mkdir -p /tmp/mydata/movielens/small/
-hadoop fs -copyFromLocal  ml-latest-small/ratings.csv /tmp/mydata/movielens/small/
+hadoop fs -copyFromLocal  ml-latest-small/*.csv /tmp/mydata/movielens/small/
+hadoop fs -mkdir -p /tmp/mydata/movielens/user-profile
+hadoop fs -copyFromLocal /repo/bt-hollywood/src/main/resources/user-profile/batch*.csv /tmp/mydata/movielens/user-profile/
 hadoop fs -mkdir -p /tmp/mydata/movielens/big/
 hadoop fs -copyFromLocal  ml-latest/ratings.csv /tmp/mydata/movielens/big/
 ```
